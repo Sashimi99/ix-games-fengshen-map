@@ -1,40 +1,46 @@
 <!doctype html><html lang="zh-Hant"><head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;min-width:0;background:#fff;color:#214766;font-family:system-ui,"Microsoft JhengHei",sans-serif}#fm{width:100%;min-width:0;padding:0}#fm h2{font-size:21px;margin:0;font-weight:700;overflow-wrap:anywhere}.fm-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 12px}.fm-hint{font-size:14px;font-weight:400;color:#738391;overflow-wrap:anywhere}.fm-tools{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin:16px 0}.fm-buttons,.fm-legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.fm-buttons button,dialog button{font:inherit;font-size:14px;border:1px solid #dce6ed;border-radius:6px;background:#fff;color:#435b70;padding:8px 12px;cursor:pointer;max-width:100%;overflow-wrap:anywhere}.fm-buttons button:hover,dialog button:hover{background:#edf5f7}.fm-legend{font-size:14px;color:#435b70;gap:12px}.fm-legend span{display:inline-flex;align-items:center;gap:5px}.fm-key{display:inline-block;width:24px;border-top:3px solid #9ca3af}.fm-key.red{border-color:#d73535}#fm-canvas{width:100%;max-width:760px;margin:auto}#fm-svg{display:block;width:100%;height:auto;aspect-ratio:1;touch-action:auto;user-select:none;-webkit-user-select:none}.fm-route{stroke:#9ca3af;stroke-width:3;fill:none;pointer-events:none;vector-effect:non-scaling-stroke}.fm-route.explored{stroke:#d73535}.fm-hit{stroke:transparent;stroke-width:16;fill:none;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:pointer;outline:none}.fm-hit:focus-visible{stroke:#087f8444}.fm-node{fill:#fff;stroke:#577082;stroke-width:1;vector-effect:non-scaling-stroke}.fm-label{fill:#214766;text-anchor:middle;pointer-events:none;font-weight:500}#fm-notice{font-size:12px;color:#a13c35;margin:8px 0 0;overflow-wrap:anywhere}#fm-notice:empty{display:none}dialog{border:1px solid #dce6ed;border-radius:10px;padding:20px;color:#214766;max-width:calc(100vw - 24px);width:340px}dialog::backdrop{background:#0006}dialog p{margin:0 0 18px;line-height:1.6;overflow-wrap:anywhere}dialog .fm-buttons{justify-content:flex-end}@media(pointer:coarse),(max-width:600px){.fm-route{stroke-width:5}.fm-hit{stroke-width:44}.fm-key{border-top-width:5}}@media(max-width:240px){.fm-buttons button{padding:6px} .fm-legend{gap:6px}}
+*{box-sizing:border-box}html,body{margin:0;width:100%;min-width:0;background:#fff;color:#214766;font-family:system-ui,"Microsoft JhengHei",sans-serif}#fm{width:100%;min-width:0;padding:0}#fm h2{font-size:21px;margin:0;font-weight:700;overflow-wrap:anywhere}.fm-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 12px}.fm-hint{font-size:14px;font-weight:400;color:#738391;overflow-wrap:anywhere}.fm-tools{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin:16px 0}.fm-buttons,.fm-legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.fm-buttons button,dialog button{font:inherit;font-size:14px;border:1px solid #dce6ed;border-radius:6px;background:#fff;color:#435b70;padding:8px 12px;cursor:pointer;max-width:100%;overflow-wrap:anywhere}.fm-buttons button:hover,dialog button:hover{background:#edf5f7}.fm-legend{font-size:14px;color:#435b70;gap:12px}.fm-legend span{display:inline-flex;align-items:center;gap:5px}.fm-key{display:inline-block;width:24px;border-top:3px solid #9ca3af}.fm-key.red{border-color:#d73535}#fm-canvas{width:100%;max-width:760px;margin:auto}#fm-svg{display:block;width:100%;height:auto;aspect-ratio:1;touch-action:auto;user-select:none;-webkit-user-select:none}.fm-route{stroke:#9ca3af;stroke-width:3;fill:none;pointer-events:none;vector-effect:non-scaling-stroke}.fm-route.explored{stroke:#d73535}.fm-hit{stroke:transparent;stroke-width:32;fill:none;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:pointer;outline:none}.fm-hit:focus-visible{stroke:#087f8444}.fm-node{fill:#fff;stroke:#577082;stroke-width:1;vector-effect:non-scaling-stroke}.fm-label{fill:#214766;text-anchor:middle;pointer-events:none;font-weight:500}#fm-notice{font-size:12px;color:#a13c35;margin:8px 0 0;overflow-wrap:anywhere}#fm-notice:empty{display:none}dialog{border:1px solid #dce6ed;border-radius:10px;padding:20px;color:#214766;max-width:calc(100vw - 24px);width:340px}dialog::backdrop{background:#0006}dialog p{margin:0 0 18px;line-height:1.6;overflow-wrap:anywhere}dialog .fm-buttons{justify-content:flex-end}@media(pointer:coarse),(max-width:600px){.fm-route{stroke-width:5}.fm-hit{stroke-width:44}.fm-key{border-top-width:5}}@media(max-width:240px){.fm-buttons button{padding:6px} .fm-legend{gap:6px}}
 #fm-footer,.fm-left{display:flex;flex-direction:column;gap:6px}
-#fm-footer{align-items:flex-end;margin-left:auto;font-size:12px;color:#738391}
-.fm-tools{align-items:flex-start;gap:8px 12px}
+html,body{max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+#fm,#fm-svg{touch-action:pan-y pinch-zoom}
+#fm-footer{align-items:flex-end;margin-left:auto;min-width:0;max-width:100%;font-size:12px;color:#738391}
+.fm-tools{align-items:flex-start;gap:8px 12px;max-width:100%}
 .fm-tools .fm-buttons,.fm-tools .fm-legend{flex-wrap:nowrap;white-space:nowrap}
 .fm-password-group,.fm-admin-group{display:flex;align-items:center;gap:4px;white-space:nowrap}
+#fm-password-group{display:grid;grid-template-columns:52px 76px 44px;align-items:center}
+#fm-password-group>span:first-child{text-align:center}
 #fm-footer [hidden]{display:none!important}
 #fm-footer button{border:0;background:none;color:inherit;font:inherit;padding:4px 0;cursor:pointer}
-#fm-password{display:inline-block;flex:0 0 74px;text-align:center;user-select:text;color:#214766}
+#fm-password{display:grid;place-items:center;width:100%;height:30px;min-width:0;line-height:1;white-space:nowrap;user-select:text;color:#214766}
 #fm-password.invalid{font-size:12px;color:#b3261e}
 #fm-footer #fm-copy,#fm-footer #fm-read{border:1px solid #dce6ed;border-radius:6px;padding:5px 8px;color:#435b70}
+#fm-footer #fm-copy{width:100%;height:30px;padding:0}
 #fm-footer button:disabled{opacity:.45;cursor:default}
 #fm-input{font:inherit;width:100px;min-width:0;border:1px solid #dce6ed;border-radius:5px;padding:5px 6px;color:#214766}
 .fm-confirm-actions button{min-width:60px}
 #fm-ok.is-clear{color:#d73535;background:#fff}
 @media(max-width:600px),(pointer:coarse){
-  .fm-tools{gap:8px;margin:12px 0}
+  .fm-tools{gap:6px;margin:12px 0}
   .fm-left,.fm-left .fm-buttons,.fm-left .fm-legend{gap:4px}
-  .fm-left .fm-buttons button{padding:6px;font-size:12px}
+  .fm-left .fm-buttons button{padding:6px 4px;font-size:12px}
   .fm-left .fm-legend{font-size:11px}
   .fm-left .fm-legend span{gap:3px}
   .fm-left .fm-key{width:12px}
   #fm-footer{font-size:11px;gap:4px}
-  #fm-password{flex-basis:66px}
+  #fm-password-group{grid-template-columns:46px 66px 36px;gap:3px}
   #fm-password.invalid{font-size:11px}
-  #fm-footer #fm-copy,#fm-footer #fm-read{padding:4px 5px}
+  #fm-footer #fm-read{padding:4px 5px}
   #fm-input{font-size:16px;width:88px;padding:3px 5px}
 }
-@media(max-width:230px){
-  .fm-tools .fm-buttons button{padding-inline:4px}
-  #fm-footer{font-size:10px}
-  #fm-password{flex-basis:62px}
-  #fm-password.invalid{font-size:10px}
+@media(max-width:276px){
+  #fm-password-group{grid-template-columns:66px 36px}
+  #fm-password-group>span:first-child{display:none}
 }
-</style></head><body><section id="fm" aria-labelledby="fm-title"><div class="fm-title"><h2 id="fm-title">封神台探索紀錄</h2><span class="fm-hint">（點擊線段切換）</span></div><div class="fm-tools"><div class="fm-left"><div class="fm-buttons"><button id="fm-all" type="button">全部選取</button><button id="fm-clear" type="button">全部清除</button></div><div class="fm-legend"><span><i class="fm-key"></i>未走過</span><span><i class="fm-key red"></i>已走過</span></div></div><div id="fm-footer"><div id="fm-password-group" class="fm-password-group"><span>探索密碼</span><span id="fm-password" tabindex="0"></span><button id="fm-copy" type="button">複製</button></div><div id="fm-read-group" class="fm-password-group"><input id="fm-input" aria-label="輸入密碼" placeholder="輸入密碼" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="fm-read" type="button">讀取</button></div><div class="fm-admin-group"><button id="fm-login" type="button"><span aria-hidden="true">🔒</span> 管理者登入</button><span id="fm-enabled" hidden>☁ 雲端同步已啟用</span><button id="fm-logout" type="button" hidden>登出</button></div></div></div><div id="fm-canvas"><svg id="fm-svg" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet" aria-label="封神台探索地圖"></svg></div><p id="fm-notice" role="status" aria-live="polite"></p></section><dialog id="fm-confirm"><p id="fm-question"></p><div class="fm-buttons fm-confirm-actions"><button id="fm-cancel" autofocus type="button">取消</button><button id="fm-ok" type="button">確認</button></div></dialog>
+@media(max-width:232px){
+  #fm-footer{flex-basis:100%}
+}
+</style></head><body><section id="fm" aria-labelledby="fm-title"><div class="fm-title"><h2 id="fm-title">封神台探索紀錄</h2><span class="fm-hint">（點擊線段切換）</span></div><div class="fm-tools"><div class="fm-left"><div class="fm-buttons"><button id="fm-all" type="button">全部選取</button><button id="fm-clear" type="button">全部清除</button></div><div class="fm-legend"><span><i class="fm-key"></i>未走過</span><span><i class="fm-key red"></i>已走過</span></div></div><div id="fm-footer"><div id="fm-password-group" class="fm-password-group"><span>探索密碼</span><span id="fm-password" aria-label="探索密碼" tabindex="0"></span><button id="fm-copy" type="button">複製</button></div><div id="fm-read-group" class="fm-password-group"><input id="fm-input" aria-label="輸入密碼" placeholder="輸入密碼" autocomplete="off" autocapitalize="characters" spellcheck="false"><button id="fm-read" type="button">讀取</button></div><div class="fm-admin-group"><button id="fm-login" type="button"><span aria-hidden="true">🔒</span> 管理者登入</button><span id="fm-enabled" hidden>☁ 雲端同步已啟用</span><button id="fm-logout" type="button" hidden>登出</button></div></div></div><div id="fm-canvas"><svg id="fm-svg" viewBox="0 0 600 600" preserveAspectRatio="xMidYMid meet" aria-label="封神台探索地圖"></svg></div><p id="fm-notice" role="status" aria-live="polite"></p></section><dialog id="fm-confirm"><p id="fm-question"></p><div class="fm-buttons fm-confirm-actions"><button id="fm-cancel" autofocus type="button">取消</button><button id="fm-ok" type="button">確認</button></div></dialog>
 <iframe id="fm-bridge" title="雲端同步連線" hidden></iframe><script>globalThis.FengshenConfig={"bridgeUrl":"https://script.google.com/macros/s/AKfycbwbZhqrsNxrK0GbDi9O8jIHKV68wWGoDyQZaY4cw_RzirB8vhJQgUpXw9JjI_lxP6ij/exec","loginUrl":"https://script.google.com/macros/s/AKfycbzIEJMsy-X_zs30xnh8VMw9HataQGLifAydBFieJt43_S8IzdfoaRn36OsK1gyiYF6w/exec"};
 </script><script>(function(root){
 'use strict';
@@ -51,7 +57,7 @@ const edges=pairs.map(([a,b])=>{const n=byId[a],m=byId[b],h=n.y===m.y;return {id
 const ids=new Set(edges.map(e=>e.id));
 const blank=()=>Object.fromEntries(edges.map(e=>[e.id,false]));
 function clean(value){if(!value||value.version!==1||!value.routes||typeof value.routes!=='object'||Array.isArray(value.routes))throw Error('紀錄格式不符');const out=blank();for(const [k,v]of Object.entries(value.routes)){if(ids.has(k)){if(typeof v!=='boolean')throw Error('路線狀態不符');out[k]=v;}}return out;}
-function hit(x,y,scale,coarse){if(nodes.some(n=>x>=n.x-1/scale&&x<=n.x+80+1/scale&&y>=n.y-1/scale&&y<=n.y+80+1/scale))return null;let best=null,dist=Infinity;for(const e of edges){const dx=e.x2-e.x1,dy=e.y2-e.y1,t=((x-e.x1)*dx+(y-e.y1)*dy)/(dx*dx+dy*dy);if(t<0||t>1)continue;const d=Math.hypot(x-e.x1-t*dx,y-e.y1-t*dy)*scale;if(d<= (coarse?22:8)&&d<dist){best=e.id;dist=d;}}return best;}
+function hit(x,y,scale,coarse){if(nodes.some(n=>x>=n.x-1/scale&&x<=n.x+80+1/scale&&y>=n.y-1/scale&&y<=n.y+80+1/scale))return null;let best=null,dist=Infinity;for(const e of edges){const dx=e.x2-e.x1,dy=e.y2-e.y1,t=((x-e.x1)*dx+(y-e.y1)*dy)/(dx*dx+dy*dy);if(t<0||t>1)continue;const d=Math.hypot(x-e.x1-t*dx,y-e.y1-t*dy)*scale;if(d<= (coarse?22:16)&&d<dist){best=e.id;dist=d;}}return best;}
 function layout(width,measure){const scale=Math.max(width,1)/600,box=80*scale,max=width<600?16:18;
  const phrases={'黃龍真人':['黃龍','真人'],'靈寶大法師':['靈寶','大法師'],'慈航道人':['慈航','道人'],'普賢真人':['普賢','真人'],'文殊廣法天尊':['文殊','廣法','天尊'],'懼留孫大法師':['懼留孫','大法師'],'玉鼎真人':['玉鼎','真人'],'姬伯邑考':['姬伯','邑考'],'清虛道德真君':['清虛','道德','真君'],'通天教主':['通天','教主']};
  function fit(label,size,pad){const available=box-2*pad;if(measure(label,size)<=available&&size*1.12<=available)return [label];const preferred=phrases[label];if(preferred&&preferred.every(s=>measure(s,size)<=available)&&preferred.length*size*1.12<=available)return preferred;const chars=Array.from(label),lines=[];let line='';for(const ch of chars){if(measure(line+ch,size)>available){if(!line)return null;lines.push(line);line=ch;if(measure(ch,size)>available)return null;}else line+=ch;}if(line)lines.push(line);return lines.length*size*1.12<=available?lines:null;}
