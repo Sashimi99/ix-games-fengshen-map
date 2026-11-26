@@ -2,6 +2,7 @@
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;min-width:0;background:#fff;color:#214766;font-family:system-ui,"Microsoft JhengHei",sans-serif}#fm{width:100%;min-width:0;padding:0}#fm h2{font-size:21px;margin:0;font-weight:700;overflow-wrap:anywhere}.fm-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 12px}.fm-hint{font-size:14px;font-weight:400;color:#738391;overflow-wrap:anywhere}.fm-tools{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:12px;margin:16px 0}.fm-buttons,.fm-legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.fm-buttons button,dialog button{font:inherit;font-size:14px;border:1px solid #dce6ed;border-radius:6px;background:#fff;color:#435b70;padding:8px 12px;cursor:pointer;max-width:100%;overflow-wrap:anywhere}.fm-buttons button:hover,dialog button:hover{background:#edf5f7}.fm-legend{font-size:14px;color:#435b70;gap:12px}.fm-legend span{display:inline-flex;align-items:center;gap:5px}.fm-key{display:inline-block;width:24px;border-top:3px solid #9ca3af}.fm-key.red{border-color:#d73535}#fm-canvas{width:100%;max-width:760px;margin:auto}#fm-svg{display:block;width:100%;height:auto;aspect-ratio:1;touch-action:auto;user-select:none;-webkit-user-select:none}.fm-route{stroke:#9ca3af;stroke-width:3;fill:none;pointer-events:none;vector-effect:non-scaling-stroke}.fm-route.explored{stroke:#d73535}.fm-hit{stroke:transparent;stroke-width:32;fill:none;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:pointer;outline:none}.fm-hit:focus-visible{stroke:#087f8444}.fm-node{fill:#fff;stroke:#577082;stroke-width:1;vector-effect:non-scaling-stroke}.fm-label{fill:#214766;text-anchor:middle;pointer-events:none;font-weight:500}#fm-notice{font-size:12px;color:#a13c35;margin:8px 0 0;overflow-wrap:anywhere}#fm-notice:empty{display:none}dialog{border:1px solid #dce6ed;border-radius:10px;padding:20px;color:#214766;max-width:calc(100vw - 24px);width:340px}dialog::backdrop{background:#0006}dialog p{margin:0 0 18px;line-height:1.6;overflow-wrap:anywhere}dialog .fm-buttons{justify-content:flex-end}@media(pointer:coarse),(max-width:600px){.fm-route{stroke-width:5}.fm-hit{stroke-width:48}.fm-key{border-top-width:5}}@media(max-width:240px){.fm-buttons button{padding:6px} .fm-legend{gap:6px}}
 #fm-footer,.fm-left{display:flex;flex-direction:column;gap:6px}
+.fm-left{row-gap:12px}
 html,body{max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 #fm,#fm-svg{touch-action:pan-y pinch-zoom}
 #fm-footer{align-items:flex-end;margin-left:auto;min-width:0;max-width:100%;font-size:12px;color:#738391}
@@ -21,10 +22,11 @@ html,body{max-width:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 #fm-footer button:disabled{opacity:.45;cursor:default}
 #fm-input{font:inherit;width:100px;min-width:0;border:1px solid #dce6ed;border-radius:5px;padding:5px 6px;color:#214766}
 .fm-confirm-actions button{min-width:60px}
+#fm-ok.is-select{color:#22863a;background:#fff}
 #fm-ok.is-clear{color:#d73535;background:#fff}
 @media(max-width:600px),(pointer:coarse){
   .fm-tools{gap:6px;margin:12px 0}
-  .fm-left,.fm-left .fm-buttons,.fm-left .fm-legend{gap:4px}
+  .fm-left .fm-buttons,.fm-left .fm-legend{gap:4px}
   .fm-left .fm-buttons button{padding:6px 4px;font-size:12px}
   .fm-left .fm-legend{font-size:11px}
   .fm-left .fm-legend span{gap:3px}
@@ -62,7 +64,26 @@ function clean(value){if(!value||value.version!==1||!value.routes||typeof value.
 function hit(x,y,scale,coarse){const border=(coarse?0.5:1)/scale;if(nodes.some(n=>x>=n.x-border&&x<=n.x+80+border&&y>=n.y-border&&y<=n.y+80+border))return null;let best=null,dist=Infinity;for(const e of edges){const dx=e.x2-e.x1,dy=e.y2-e.y1,t=((x-e.x1)*dx+(y-e.y1)*dy)/(dx*dx+dy*dy);if(t<0||t>1)continue;const d=Math.hypot(x-e.x1-t*dx,y-e.y1-t*dy)*scale;if(d<= (coarse?24:16)&&d<dist){best=e.id;dist=d;}}return best;}
 function layout(width,measure){const scale=Math.max(width,1)/600,box=80*scale,max=width<600?16:18;
  const phrases={'黃龍真人':['黃龍','真人'],'靈寶大法師':['靈寶','大法師'],'慈航道人':['慈航','道人'],'普賢真人':['普賢','真人'],'文殊廣法天尊':['文殊','廣法','天尊'],'懼留孫大法師':['懼留孫','大法師'],'玉鼎真人':['玉鼎','真人'],'姬伯邑考':['姬伯','邑考'],'清虛道德真君':['清虛','道德','真君'],'通天教主':['通天','教主']};
- function fit(label,size,pad){const available=box-2*pad;if(measure(label,size)<=available&&size*1.12<=available)return [label];const preferred=phrases[label];if(preferred&&preferred.every(s=>measure(s,size)<=available)&&preferred.length*size*1.12<=available)return preferred;const chars=Array.from(label),lines=[];let line='';for(const ch of chars){if(measure(line+ch,size)>available){if(!line)return null;lines.push(line);line=ch;if(measure(ch,size)>available)return null;}else line+=ch;}if(line)lines.push(line);return lines.length*size*1.12<=available?lines:null;}
+ const twoLine={'文殊廣法天尊':['文殊','廣法天尊'],'清虛道德真君':['清虛','道德真君']};
+ function fit(label,size,pad){
+   const available=box-2*pad;
+   const pair=twoLine[label];
+   // Fit the preferred pair at this size; falling back must not force smaller type.
+   if(pair&&pair.every(s=>measure(s,size)<=box-2)&&2*size*1.12<=box-2)return pair;
+   if(measure(label,size)<=available&&size*1.12<=available)return [label];
+   const preferred=phrases[label];
+   if(preferred&&preferred.every(s=>measure(s,size)<=available)&&preferred.length*size*1.12<=available)return preferred;
+   const chars=Array.from(label),lines=[];let line='';
+   for(const ch of chars){
+     if(measure(line+ch,size)>available){
+       if(!line)return null;
+       lines.push(line);line=ch;
+       if(measure(ch,size)>available)return null;
+     }else line+=ch;
+   }
+   if(line)lines.push(line);
+   return lines.length*size*1.12<=available?lines:null;
+ }
  for(const mode of ['name','short','single']){for(let size=max;size>=12;size-=.5){for(const pad of [3,1]){const lines=nodes.map(n=>fit(n[mode],size,pad));if(lines.every(Boolean))return {mode,size,lines,scale};}}}
  let size=Math.min(12,box*.7);return {mode:'single',size,lines:nodes.map(n=>[n.single]),scale};
 }
@@ -624,10 +645,11 @@ function cancelTouchTap(){if(tap?.touch)tap=null;}
 window.addEventListener('scroll',cancelTouchTap,{passive:true,capture:true});
 window.visualViewport?.addEventListener('resize',cancelTouchTap,{passive:true});
 let answer=null;
-function confirmAction(text,action,label='確認'){
+function confirmAction(text,action,label='確認',kind=''){
   $('question').textContent=text;
   $('ok').textContent=label;
-  $('ok').classList.toggle('is-clear',label==='清除');
+  $('ok').classList.toggle('is-select',kind==='select');
+  $('ok').classList.toggle('is-clear',kind==='clear');
   answer=action;
   $('confirm').showModal();
   $('cancel').focus();
@@ -635,8 +657,8 @@ function confirmAction(text,action,label='確認'){
 $('cancel').onclick=()=>{$('confirm').close();answer=null;};
 $('confirm').addEventListener('cancel',()=>{answer=null;});
 $('ok').onclick=()=>{const f=answer;answer=null;$('confirm').close();f?.();};
-$('all').onclick=()=>confirmAction('確定將所有路線標記為已走過？',()=>change('all',true),'選取');
-$('clear').onclick=()=>confirmAction('確定清除所有探索紀錄？',()=>change('all',false),'清除');
+$('all').onclick=()=>confirmAction('選取所有路徑？',()=>change('all',true),'確定','select');
+$('clear').onclick=()=>confirmAction('清除所有路徑？',()=>change('all',false),'確定','clear');
 function apply(r,op){for(const id of op.route==='all'?C.ids:[op.route])r[id]=op.value;}
 function change(route,value){const op={route,value};if(admin){apply(routes,op);queue.push(op);paint();flush();}else{apply(guest,op);routes=guest;paint();notice();}}
 function passwordUI(){
