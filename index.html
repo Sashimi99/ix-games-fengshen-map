@@ -607,6 +607,44 @@ root.FengshenPassword={encode,decode,edgeIds,count};
 </script><script>(function(){'use strict';
 const C=FengshenCore,$=id=>document.getElementById('fm-'+id),svg=$('svg'),NS='http://www.w3.org/2000/svg';
 let guest=C.blank(),routes=guest,admin=false,token=null,queue=[],sending=false,epoch=0,loginBusy=false,revision=-1,bridge=null,loginAttempt=null;
+const adminSessionKey='ix-games:fengshen:admin-session:v1';
+function rememberSession(value){
+  try{
+    if(value)sessionStorage.setItem(adminSessionKey,value);
+    else sessionStorage.removeItem(adminSessionKey);
+  }catch{}
+}
+async function restoreSession(){
+  let saved;
+  try{saved=sessionStorage.getItem(adminSessionKey);}catch{return;}
+  if(!/^[a-f0-9]{64}$/.test(saved||''))return;
+  loginBusy=true;
+  try{await activate(saved);}
+  catch(err){
+    if(err.message.includes('AUTH_REQUIRED'))rememberSession(null);
+    notice('無法恢復管理者登入，請重新登入。');
+  }finally{loginBusy=false;}
+}
+
+// The Google Sites embed origin can rotate. Only the non-private room ID is shared.
+const roomIds=new Set(['compact-spirit','compact-guide','compact-patch','senkaiden2-guide','senkaiden2-patch','yaiba-guide','yaiba-patch']);
+const roomStorageKey='ix-games:active-room:v1';
+window.addEventListener('message',event=>{
+  if(event.source!==window.parent||!/^https:\/\/\d+-atari-embeds\.googleusercontent\.com$/.test(event.origin))return;
+  const data=event.data;
+  if(data?.type==='ix-room:get'){
+    let room=null;
+    for(const storage of ['localStorage','sessionStorage']){
+      try{room=window[storage].getItem(roomStorageKey);}catch{}
+      if(roomIds.has(room))break;
+    }
+    event.source.postMessage({type:'ix-room:current',room:roomIds.has(room)?room:null},event.origin);
+  }else if(data?.type==='ix-room:set'&&roomIds.has(data.room)){
+    for(const storage of ['localStorage','sessionStorage']){
+      try{window[storage].setItem(roomStorageKey,data.room);}catch{}
+    }
+  }
+});
 function notice(s=''){$('notice').textContent=s;}
 const lineEls={},hitEls={},textEls=[];
 function el(name,attrs){const x=document.createElementNS(NS,name);for(const [k,v]of Object.entries(attrs))x.setAttribute(k,v);return x;}
@@ -712,13 +750,14 @@ window.addEventListener('message',async e=>{const d=e.data;if(!d||!googleOrigin(
 });
 async function rpc(name,...args){await ensureBridge();return new Promise((resolve,reject)=>{const id=crypto.randomUUID(),timer=setTimeout(()=>{requests.delete(id);reject(Error('雲端連線逾時'));},20000);requests.set(id,{resolve,reject,timer});bridge.source.postMessage({type:'fengshen-rpc',id,method:name,args},bridge.origin);});}
 function overlay(record){const r=C.clean(record);if(record.revision<revision)return;revision=record.revision;for(const op of queue)apply(r,op);routes=r;paint();}
-async function flush(){if(sending||!admin||!token||!queue.length)return;const generation=epoch;sending=true;try{while(queue.length&&admin&&token&&generation===epoch){const op=queue[0],record=await rpc('updateRecord',token,op);if(generation!==epoch)return;queue.shift();overlay(record);}notice();}catch(err){if(generation!==epoch)return;notice('雲端保存失敗，尚有未保存的操作。請保持頁面開啟。');if(err.message.includes('AUTH_REQUIRED')){token=null;$('login').hidden=false;$('login').textContent='管理者重新登入';$('enabled').hidden=true;notice('登入已過期，請重新登入以保存尚未同步的操作。');}}finally{if(generation===epoch){sending=false;}}}
-async function activate(t,generation=epoch){const record=await rpc('getRecord',t);if(generation!==epoch)return;C.clean(record);token=t;admin=true;$('login').hidden=true;$('enabled').hidden=false;$('logout').hidden=false;overlay(record);notice();flush();}
+async function flush(){if(sending||!admin||!token||!queue.length)return;const generation=epoch;sending=true;try{while(queue.length&&admin&&token&&generation===epoch){const op=queue[0],record=await rpc('updateRecord',token,op);if(generation!==epoch)return;queue.shift();overlay(record);}notice();}catch(err){if(generation!==epoch)return;notice('雲端保存失敗，尚有未保存的操作。請保持頁面開啟。');if(err.message.includes('AUTH_REQUIRED')){token=null;rememberSession(null);$('login').hidden=false;$('login').textContent='管理者重新登入';$('enabled').hidden=true;notice('登入已過期，請重新登入以保存尚未同步的操作。');}}finally{if(generation===epoch){sending=false;}}}
+async function activate(t,generation=epoch){const record=await rpc('getRecord',t);if(generation!==epoch)return;C.clean(record);token=t;rememberSession(t);admin=true;$('login').hidden=true;$('enabled').hidden=false;$('logout').hidden=false;overlay(record);notice();flush();}
 $('login').onclick=()=>{if(loginBusy)return;if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(FengshenConfig.loginUrl)){notice('管理者登入尚未設定。');return;}const nonce=Array.from(crypto.getRandomValues(new Uint8Array(32)),b=>b.toString(16).padStart(2,'0')).join(''),popup=window.open(FengshenConfig.loginUrl+'?view=login&nonce='+nonce,'fengshen-admin-login','popup,width=520,height=650');if(!popup){notice('無法開啟 Google 登入視窗，請允許此操作後再試。');return;}loginBusy=true;loginAttempt={nonce,popup,epoch};const attempt=loginAttempt;setTimeout(()=>{if(loginAttempt===attempt){loginAttempt=null;loginBusy=false;notice('登入未完成，請重新登入。');}},300000);};
-async function leave(){const old=token;++epoch;admin=false;token=null;queue=[];sending=false;revision=-1;loginAttempt=null;loginBusy=false;routes=guest;paint();$('login').hidden=false;$('login').innerHTML='<span aria-hidden="true">🔒</span> 管理者登入';$('enabled').hidden=true;$('logout').hidden=true;notice();if(old)try{await rpc('logout',old);}catch{notice('本機已登出；伺服器授權將於到期時失效。');}}
+async function leave(){const old=token;rememberSession(null);++epoch;admin=false;token=null;queue=[];sending=false;revision=-1;loginAttempt=null;loginBusy=false;routes=guest;paint();$('login').hidden=false;$('login').innerHTML='<span aria-hidden="true">🔒</span> 管理者登入';$('enabled').hidden=true;$('logout').hidden=true;notice();if(old)try{await rpc('logout',old);}catch{notice('本機已登出；伺服器授權將於到期時失效。');}}
 $('logout').onclick=()=>queue.length?confirmAction('仍有尚未保存的操作，確定放棄這些操作並登出？',leave):leave();
 window.addEventListener('beforeunload',ev=>{if(admin&&queue.length){ev.preventDefault();ev.returnValue='';}});
 paint();notice();
+restoreSession();
 // Measure the card itself, so changing the iframe height cannot feed back into it.
 if(window.parent!==window){
   const card=document.getElementById('fm');
