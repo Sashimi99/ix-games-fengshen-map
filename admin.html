@@ -19,6 +19,8 @@ nav button:hover{background:#dbe6ed}
 .name{font-weight:600;overflow-wrap:anywhere}.context{color:#526b7d;font-size:12px}.unit{display:flex;gap:6px;align-items:center}
 #records{margin-top:14px}.record{display:flex;align-items:center;flex-wrap:wrap;gap:8px;justify-content:space-between;border-top:1px solid #e5edf2;padding:8px 0}
 @media(max-width:600px){.field{grid-template-columns:minmax(0,1fr) auto}.name{grid-column:1/-1}.card{padding:12px}nav button{padding:0 9px}.row input,.row select,.field input,.field textarea{font-size:16px}}
+dialog{position:absolute;inset:auto;top:var(--confirm-top);left:50%;transform:translateX(-50%);margin:0;width:min(360px,calc(100% - 24px));border:1px solid #dce6ed;border-radius:10px;color:#19354a;padding:16px}
+dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-content:flex-end}
 </style></head><body>
 <div id="locked" class="status" role="status">請從左側目錄登入管理室。</div>
 <div id="app" hidden>
@@ -47,6 +49,13 @@ nav button:hover{background:#dbe6ed}
     </div>
   </div>
 </div>
+<dialog id="ix-confirm" aria-labelledby="ix-confirm-message">
+  <p id="ix-confirm-message"></p>
+  <form method="dialog" class="row">
+    <button class="control" value="cancel" autofocus>取消</button>
+    <button class="control primary" value="confirm">確認</button>
+  </form>
+</dialog>
 <iframe id="bridge" title="管理資料連線" hidden></iframe>
 <script>globalThis.FengshenConfig={"bridgeUrl":"https://script.google.com/macros/s/AKfycbwbZhqrsNxrK0GbDi9O8jIHKV68wWGoDyQZaY4cw_RzirB8vhJQgUpXw9JjI_lxP6ij/exec","loginUrl":"https://script.google.com/macros/s/AKfycbzIEJMsy-X_zs30xnh8VMw9HataQGLifAydBFieJt43_S8IzdfoaRn36OsK1gyiYF6w/exec"};
 </script><script>(() => {
@@ -368,6 +377,20 @@ nav button:hover{background:#dbe6ed}
   const rpc = session.rpcClient($('bridge'));
   let token = null, generation = 0, state = null, editable = {}, tab = 'text', origin, dirty = false, busy = false;
   const parentPattern = /^https:\/\/\d+-atari-embeds\.googleusercontent\.com$/;
+  const confirmation = $('ix-confirm');
+
+  function ask(message, trigger) {
+    if (confirmation.open) return Promise.resolve(false);
+    const rect = trigger.getBoundingClientRect();
+    const bottom = Math.max(12, document.documentElement.clientHeight - 140);
+    confirmation.style.setProperty('--confirm-top', Math.min(Math.max(12, rect.top + scrollY), bottom) + 'px');
+    $('ix-confirm-message').textContent = message;
+    confirmation.returnValue = 'cancel';
+    return new Promise(resolve => {
+      confirmation.addEventListener('close', () => resolve(confirmation.returnValue === 'confirm'), {once:true});
+      confirmation.showModal();
+    });
+  }
 
   function send(type, detail = {}) {
     if (origin) parent.postMessage({type,...detail}, origin);
@@ -436,11 +459,13 @@ nav button:hover{background:#dbe6ed}
     }
     wrapper.append(editor);
     if (spec.kind === 'number') wrapper.append(make('span',spec.unit || 'px'));
-    function update() {
+    async function update() {
       const proposed = spec.kind === 'number' ? (editor.value === '' ? null : editor.valueAsNumber) : editor.value;
-      if (spec.optionalDelete && proposed === 0 && editable[key] !== 0 && !confirm('隱藏這個攻略段落？')) {
-        editor.value = value();
-        return;
+      if (spec.optionalDelete && proposed === 0 && editable[key] !== 0) {
+        if (!await ask('隱藏這個攻略段落？', editor) || !editor.isConnected) {
+          editor.value = value();
+          return;
+        }
       }
       if (proposed === spec.value) delete editable[key];
       else editable[key] = proposed;
@@ -454,8 +479,8 @@ nav button:hover{background:#dbe6ed}
     const reset = make('button', spec.optional ? '刪除段落' : '恢復預設');
     reset.type = 'button';
     reset.className = 'control';
-    reset.onclick = () => {
-      if (spec.optional && editor.value && !confirm('刪除這個補充段落？')) return;
+    reset.onclick = async () => {
+      if (spec.optional && editor.value && !await ask('刪除這個補充段落？', reset)) return;
       editor.value = spec.value; update();
     };
     row.append(caption,wrapper,reset);
@@ -491,8 +516,8 @@ nav button:hover{background:#dbe6ed}
         const line = make('div'); line.className='record';
         const name = make('span','版本 ' + backup.version + ' · ' + new Date(backup.savedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
         const restore = make('button','還原'); restore.type='button'; restore.className='control';
-        restore.onclick = () => {
-          if (confirm('還原這個備份並發布？')) execute('restore', backup.backupId);
+        restore.onclick = async () => {
+          if (await ask('還原這個備份並發布？', restore)) execute('restore', backup.backupId);
         };
         line.append(name,restore);
         $('records').append(line);
@@ -521,6 +546,7 @@ nav button:hover{background:#dbe6ed}
     }
   }
   function lock() {
+    if (confirmation.open) confirmation.close('cancel');
     ++generation;
     token = null; state = null; editable = {}; busy = false; dirty = false;
     $('app').hidden = true;
@@ -563,8 +589,8 @@ nav button:hover{background:#dbe6ed}
     if (dirty) { event.preventDefault(); event.returnValue = ''; }
   });
   $('save').onclick = () => execute('save', editable);
-  $('publish').onclick = () => { if (confirm('發布目前草稿？')) execute('publish'); };
-  $('discard').onclick = () => { if (confirm('放棄尚未發布的草稿與本次未儲存修改？')) execute('discard'); };
+  $('publish').onclick = async () => { if (await ask('發布目前草稿？', $('publish'))) execute('publish'); };
+  $('discard').onclick = async () => { if (await ask('放棄尚未發布的草稿與本次未儲存修改？', $('discard'))) execute('discard'); };
   $('backup').onclick = () => execute('backup');
   $('room').onchange = () => { $('search').value=''; filter(); };
   $('search').oninput = () => filter();
