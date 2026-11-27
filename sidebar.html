@@ -1,0 +1,268 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,"Microsoft JhengHei",sans-serif;color:#75b3c6}
+[hidden]{display:none!important}.row{display:flex;align-items:center;height:41px;gap:8px;white-space:nowrap}
+.room,.guest{display:inline-flex;align-items:center;gap:6px;color:inherit}
+button{background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;min-height:40px}
+button:focus-visible{outline:2px solid #75b3c6;outline-offset:-2px}
+.guest,#logout{color:#a9adb2}#logout{font-size:12px;padding-inline:1px}
+#room[aria-current=page]{color:white;font-weight:700}
+svg{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6}
+</style></head><body>
+<div class="row">
+  <span id="guest" class="guest">
+    <button id="login" type="button" aria-label="管理者登入"><svg aria-hidden="true" viewBox="0 0 20 20"><rect x="4" y="8" width="12" height="9" rx="2"/><path d="M7 8V5a3 3 0 0 1 6 0v3m-3 3v3"/></svg></button>
+    <span>管理室</span>
+  </span>
+  <button id="room" class="room" type="button" hidden><svg aria-hidden="true" viewBox="0 0 20 20"><path d="m8 2-.5 2.4-1.8 1-2.2-.7-1.7 2.9 1.8 1.7v1.5l-1.8 1.7 1.7 2.9 2.2-.7 1.8 1L8 18h4l.5-2.3 1.8-1 2.2.7 1.7-2.9-1.8-1.7V9.3l1.8-1.7-1.7-2.9-2.2.7-1.8-1L12 2Z"/><circle cx="10" cy="10" r="2.6"/></svg><span>管理室</span></button>
+  <button id="logout" type="button" hidden>(登出)</button>
+</div>
+<iframe id="bridge" title="管理驗證連線" hidden></iframe>
+<script>globalThis.FengshenConfig={"bridgeUrl":"https://script.google.com/macros/s/AKfycbwbZhqrsNxrK0GbDi9O8jIHKV68wWGoDyQZaY4cw_RzirB8vhJQgUpXw9JjI_lxP6ij/exec","loginUrl":"https://script.google.com/macros/s/AKfycbzIEJMsy-X_zs30xnh8VMw9HataQGLifAydBFieJt43_S8IzdfoaRn36OsK1gyiYF6w/exec"};
+</script><script>(() => {
+  'use strict';
+  const storageKey = 'ix-games:fengshen:admin-session:v1';
+  const channel = 'ix-games:admin-session:v1';
+  const origin = location.origin;
+  const valid = token => typeof token === 'string' && /^[a-f0-9]{64}$/.test(token);
+  const googleOrigin = value => /^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(value);
+  const serviceUrl = value => /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(value);
+
+  function contains(root, source, depth = 0) {
+    if (!root || depth > 8) return false;
+    try {
+      if (root === source) return true;
+      for (let i = 0; i < root.length; ++i) {
+        if (contains(root.frames[i], source, depth + 1)) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function read() {
+    try {
+      const value = sessionStorage.getItem(storageKey);
+      return valid(value) ? value : null;
+    } catch (_) { return null; }
+  }
+
+  function remember(token) {
+    try {
+      if (valid(token)) sessionStorage.setItem(storageKey, token);
+      else sessionStorage.removeItem(storageKey);
+    } catch (_) {}
+  }
+
+  function sibling(source) {
+    if (parent === window) return false;
+    for (let i = 0; i < parent.length; ++i) {
+      if (parent.frames[i] === source && source !== window) return true;
+    }
+    return false;
+  }
+
+  function share(type, token = null, direct = null) {
+    const message = {channel, type};
+    if (valid(token)) message.token = token;
+    if (direct) {
+      if (sibling(direct)) direct.postMessage(message, origin);
+      return;
+    }
+    if (parent === window) return;
+    for (let i = 0; i < parent.length; ++i) {
+      const frame = parent.frames[i];
+      if (frame !== window) frame.postMessage(message, origin);
+    }
+  }
+
+  function listen(handler) {
+    window.addEventListener('message', event => {
+      if (event.origin !== origin || !sibling(event.source) || event.data?.channel !== channel) return;
+      handler(event.data, event.source);
+    });
+  }
+
+  function rpcClient(frame) {
+    const requests = new Map();
+    let bridge;
+    let ready;
+    let acknowledge;
+    window.addEventListener('message', event => {
+      if (!googleOrigin(event.origin)) return;
+      const data = event.data;
+      if (data?.type === 'fengshen-bridge-ready' && contains(frame.contentWindow, event.source)) {
+        bridge = {source:event.source, origin:event.origin};
+        acknowledge?.();
+      } else if (data?.type === 'fengshen-rpc-result' &&
+                 event.source === bridge?.source && event.origin === bridge.origin) {
+        const request = requests.get(data.id);
+        if (!request) return;
+        requests.delete(data.id);
+        clearTimeout(request.timer);
+        if (data.error) request.reject(Error(data.error));
+        else request.resolve(data.result);
+      }
+    });
+    return async (method, ...args) => {
+      if (!serviceUrl(FengshenConfig.bridgeUrl)) throw Error('雲端服務尚未設定');
+      if (!bridge) {
+        if (!ready) {
+          ready = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              ready = null;
+              acknowledge = null;
+              reject(Error('雲端連線逾時'));
+            }, 20000);
+            acknowledge = () => { clearTimeout(timeout); resolve(); };
+            frame.src = FengshenConfig.bridgeUrl;
+          });
+        }
+        await ready;
+      }
+      return new Promise((resolve, reject) => {
+        const id = crypto.randomUUID();
+        const timer = setTimeout(() => {
+          requests.delete(id);
+          reject(Error('雲端連線逾時'));
+        }, 20000);
+        requests.set(id, {resolve, reject, timer});
+        bridge.source.postMessage({type:'fengshen-rpc', id, method, args}, bridge.origin);
+      });
+    };
+  }
+
+  function signIn() {
+    if (!serviceUrl(FengshenConfig.loginUrl)) return Promise.reject(Error('管理者登入尚未設定'));
+    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(32)), value =>
+      value.toString(16).padStart(2, '0')).join('');
+    const popup = window.open(FengshenConfig.loginUrl + '?view=login&nonce=' + nonce,
+      'ix-admin-login', 'popup,width=520,height=650');
+    if (!popup) return Promise.reject(Error('無法開啟 Google 登入視窗'));
+    return new Promise((resolve, reject) => {
+      const cleanup = () => {
+        window.removeEventListener('message', receive);
+        clearInterval(watch);
+      };
+      const receive = event => {
+        const data = event.data;
+        if (data?.type !== 'fengshen-login' || data.nonce !== nonce || !valid(data.token) ||
+            !googleOrigin(event.origin) || !contains(popup, event.source)) return;
+        cleanup();
+        popup.close();
+        resolve(data.token);
+      };
+      const start = Date.now();
+      const watch = setInterval(() => {
+        if (!popup.closed && Date.now() - start < 300000) return;
+        cleanup();
+        reject(Error('登入未完成'));
+      }, 400);
+      window.addEventListener('message', receive);
+    });
+  }
+
+  globalThis.IxSiteSession = {valid, read, remember, share, listen, rpcClient, signIn};
+})();
+</script><script>(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const session = IxSiteSession;
+  const rpc = session.rpcClient($('bridge'));
+  let token = null;
+  let generation = 0;
+  let parentOrigin;
+  let ready = false;
+  let publicContent;
+  const contentKey = 'ix-games:published-content:v1';
+  const approvedEmbed = /^https:\/\/\d+-atari-embeds\.googleusercontent\.com$/;
+  function announce(type, detail = {}) {
+    if (parentOrigin) parent.postMessage({type, ...detail}, parentOrigin);
+  }
+  function paint() {
+    $('guest').hidden = Boolean(token);
+    $('room').hidden = $('logout').hidden = !token;
+    announce('ix-admin:status', {authenticated:Boolean(token)});
+  }
+  function invalidate() {
+    ++generation;
+    token = null;
+    session.remember(null);
+    session.share('logout');
+    paint();
+  }
+  function present(snapshot) {
+    if (!snapshot || !Number.isSafeInteger(snapshot.version) || !snapshot.values ||
+        (publicContent && publicContent.version > snapshot.version)) return;
+    publicContent = snapshot;
+    announce('ix-content:published', {snapshot});
+    session.share('public');
+  }
+  async function refreshContent() {
+    try {
+      const snapshot = await rpc('getSiteContent');
+      present(snapshot);
+      try { localStorage.setItem(contentKey, JSON.stringify(snapshot)); } catch (_) {}
+    } catch (_) {}
+  }
+  async function verify(candidate, attempt) {
+    await rpc('getRecord', candidate);
+    if (generation !== attempt) return;
+    token = candidate;
+    session.remember(token);
+    session.share('session', token);
+    paint();
+  }
+  window.addEventListener('message', event => {
+    if (event.source !== parent || !approvedEmbed.test(event.origin)) return;
+    if (event.data?.type === 'ix-admin:hello') {
+      parentOrigin = event.origin;
+      paint();
+      if (ready) return;
+      ready = true;
+      try { present(JSON.parse(localStorage.getItem(contentKey))); } catch (_) {}
+      refreshContent();
+      const saved = session.read();
+      if (saved) verify(saved, ++generation).catch(err => {
+        if (err.message === 'AUTH_REQUIRED') invalidate();
+      });
+    } else if (event.origin === parentOrigin && event.data?.type === 'ix-admin:selected') {
+      if (token && event.data.selected === true) $('room').setAttribute('aria-current', 'page');
+      else $('room').removeAttribute('aria-current');
+    }
+  });
+  session.listen((data, source) => {
+    if (data.type === 'request' && token) session.share('session', token, source);
+    if (data.type === 'expired' && data.token === token && token) invalidate();
+    if (data.type === 'published') refreshContent();
+  });
+  $('login').onclick = async () => {
+    if (!ready || $('login').disabled) return;
+    $('login').disabled = true;
+    const attempt = ++generation;
+    try {
+      await verify(await session.signIn(), attempt);
+    } catch (error) {
+      if (generation === attempt && error.message !== '登入未完成') alert(error.message);
+    } finally {
+      $('login').disabled = false;
+    }
+  };
+  $('room').onclick = () => {
+    if (token) announce('ix-admin:open');
+  };
+  $('logout').onclick = async () => {
+    if (!token || $('logout').disabled) return;
+    $('logout').disabled = true;
+    try {
+      await rpc('logout', token);
+      invalidate();
+    } catch (error) {
+      if (error.message === 'AUTH_REQUIRED') invalidate();
+      else alert('伺服器尚未確認登出，請再試一次。');
+    } finally {
+      $('logout').disabled = false;
+    }
+  };
+})();
+</script></body></html>
