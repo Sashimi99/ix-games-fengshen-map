@@ -31,6 +31,11 @@ nav button:hover{background:#dbe6ed}
 .field textarea{width:100%;resize:vertical;min-height:68px}.field input:not([type=color]){width:100%}.field input[type=color]{width:42px;height:35px;padding:3px}
 .name{font-weight:600;overflow-wrap:anywhere}.context{color:#526b7d;font-size:12px}.unit{display:flex;gap:6px;align-items:center}
 #records{margin-top:14px}.record{display:flex;align-items:center;flex-wrap:wrap;gap:8px;justify-content:space-between;border-top:1px solid #e5edf2;padding:8px 0}
+.backup-list+.backup-list{margin-top:20px}.backup-heading,.backup-actions{display:flex;align-items:center;gap:8px}.backup-heading{justify-content:space-between;flex-wrap:wrap}.backup-heading h3{margin:0}
+.backup-details{flex:1 1 185px;min-width:0;overflow-wrap:anywhere}.backup-details small{display:block;color:#526b7d}
+.backup-actions button{height:40px;min-width:40px;padding:0 8px}.backup-icon svg{display:block;width:17px;height:17px;margin:auto}
+.backup-icon.pin{color:#087e85}.backup-icon.delete{color:#a12222}.control.danger{background:#a12222;color:white;border-color:#a12222}
+#ix-confirm-name{display:grid;gap:4px;margin-bottom:12px}#ix-confirm-name input{box-sizing:border-box;width:100%;font:inherit}
 @media(max-width:600px){.field{grid-template-columns:minmax(0,1fr) auto}.name{grid-column:1/-1}.card{padding:12px}nav button{padding:0 9px}.row input,.row select,.field input,.field textarea{font-size:16px}}
 dialog{position:absolute;inset:auto;top:var(--confirm-top);left:50%;transform:translateX(-50%);margin:0;width:min(360px,calc(100% - 24px));border:1px solid #dce6ed;border-radius:10px;color:#19354a;padding:16px}
 dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-content:flex-end}
@@ -69,7 +74,10 @@ dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-c
 </div>
 <dialog id="ix-confirm" aria-labelledby="ix-confirm-message">
   <p id="ix-confirm-message"></p>
-  <form method="dialog" class="row">
+  <label id="ix-confirm-name" hidden>自訂備份名稱（選填）
+    <input id="ix-backup-name" form="ix-confirm-form" type="text" maxlength="80">
+  </label>
+  <form id="ix-confirm-form" method="dialog" class="row">
     <button class="control" value="cancel" autofocus>取消</button>
     <button class="control primary" value="confirm">確認</button>
   </form>
@@ -527,16 +535,26 @@ dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-c
       .filter(id=>editable[id]!==state?.liveValues?.[id]).map(id=>[id,editable[id]??null]));
   }
 
-  function ask(message, trigger) {
-    if (confirmation.open) return Promise.resolve(false);
+  function ask(message, trigger, {name, danger=false}={}) {
+    const named = name !== undefined;
+    if (confirmation.open) return Promise.resolve(named?null:false);
     const rect = trigger.getBoundingClientRect();
-    const bottom = Math.max(12, document.documentElement.clientHeight - 140);
+    const bottom = Math.max(12, document.documentElement.clientHeight - (named?205:145));
     confirmation.style.setProperty('--confirm-top', Math.min(Math.max(12, rect.top + scrollY), bottom) + 'px');
     $('ix-confirm-message').textContent = message;
+    $('ix-confirm-name').hidden = !named;
+    $('ix-backup-name').value = named?name:'';
+    const accept=confirmation.querySelector('[value=confirm]');
+    accept.classList.toggle('danger',danger);
+    accept.textContent=danger?'確定刪除':'確認';
     confirmation.returnValue = 'cancel';
     return new Promise(resolve => {
-      confirmation.addEventListener('close', () => resolve(confirmation.returnValue === 'confirm'), {once:true});
+      confirmation.addEventListener('close', () => {
+        const agreed=confirmation.returnValue==='confirm';
+        resolve(named?(agreed?$('ix-backup-name').value:null):agreed);
+      }, {once:true});
       confirmation.showModal();
+      confirmation.querySelector('[value=cancel]').focus({preventScroll:true});
     });
   }
 
@@ -564,9 +582,9 @@ dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-c
       (changes.length?'的 '+changes.length+' 筆修改。':'。')+' 其他區塊保留為草稿或未儲存修改。';
     $('publish').disabled = busy || dirty || !state?.hasDraft;
     $('discard').disabled = busy || !state?.hasDraft;
-    $('backup').disabled = busy || dirty;
+    $('backup').disabled = busy || reloadState;
     $('records').querySelectorAll('button').forEach(button => {
-      button.disabled = busy || dirty || state.hasDraft;
+      button.disabled = busy || reloadState;
     });
   }
   function markDirty() {
@@ -779,19 +797,75 @@ dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-c
     if (publishing) {
       const date = state.publishedAt ? new Date(state.publishedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}) : '初始版本';
       $('live').textContent = '正式版本 ' + state.version + ' · ' + date + (state.hasDraft ? ' · 有草稿' : '');
-      $('records').replaceChildren(make('h3','備份紀錄'));
-      for (const backup of state.backups) {
-        const line = make('div'); line.className='record';
-        const name = make('span','版本 ' + backup.version + ' · ' + new Date(backup.savedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
-        const restore = make('button','還原'); restore.type='button'; restore.className='control';
-        restore.onclick = async () => {
-          if (await ask('還原這個備份並發布？', restore)) execute('restore', backup.backupId);
-        };
-        line.append(name,restore);
-        $('records').append(line);
-      }
+      paintBackups();
     } else filter(rebuild);
     markDirty();
+  }
+  const backupIcons = {
+    rename:'M3 13v4h4l10-10-4-4L3 13zm8-8 4 4',
+    pin:'M5 2h10v16l-5-3-5 3z',
+    delete:'M3 5h14M7 5V3h6v2m2 0-1 12H6L5 5m3 3v6m4-6v6'
+  };
+  function backupIcon(kind, label, action) {
+    const button=command('',action);
+    button.classList.add('backup-icon',kind);
+    button.setAttribute('aria-label',label);
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 20 20');
+    svg.setAttribute('aria-hidden','true');
+    const path=document.createElementNS(svg.namespaceURI,'path');
+    path.setAttribute('d',backupIcons[kind]);
+    path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','1.5');
+    svg.append(path);button.append(svg);
+    return button;
+  }
+  function paintBackups() {
+    const records=$('records');
+    records.replaceChildren();
+    for (const kind of ['manual','auto']) {
+      const manual=kind==='manual';
+      const title=manual?'手動備份':'自動備份';
+      const items=state.backups.filter(b=>manual?b.kind!=='auto':b.kind==='auto')
+        .sort((a,b)=>String(b.savedAt).localeCompare(String(a.savedAt)));
+      const section=make('section');section.className='backup-list';
+      const heading=make('div');heading.className='backup-heading';
+      heading.append(make('h3',title),make('small',manual?'永久保留・'+items.length+' 個':items.length+' / 10 個'));
+      section.append(heading);
+      if (!items.length) {
+        const empty=make('p','目前沒有'+title);empty.className='context';section.append(empty);
+      }
+      for (const backup of items) {
+        const info=make('div');info.className='backup-details';
+        const version='版本 '+backup.version;
+        const date=new Date(backup.savedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'});
+        const description=version+' · '+date;
+        const display=backup.name||description;
+        if (manual) info.append(make('strong',display));
+        if (!manual || backup.name) info.append(make('small',description));
+        const line=make('div');line.className='record';
+        const actions=make('div');actions.className='backup-actions';
+        const edit=backupIcon(manual?'rename':'pin',(manual?'重新命名 ':'永久保留 ')+display,async()=>{
+          const name=await ask((manual?'重新命名「':'永久保留「')+display+'」',edit,{name:backup.name||''});
+          if (name!==null) await execute(manual?'rename':'pin',{backupId:backup.backupId,name});
+        });
+        const restore=command('還原',async()=>{
+          if (dirty || state.hasDraft) {
+            status('還原前請先處理尚未儲存或發布的草稿。',true);
+            return;
+          }
+          if (await ask('還原「'+display+'」並發布？',restore)) await execute('restore',backup.backupId);
+        });
+        restore.setAttribute('aria-label','還原 '+display);
+        const remove=backupIcon('delete','刪除 '+display,async()=>{
+          if (await ask('刪除「'+display+'」？',remove,{danger:true})) await execute('delete-backup',{backupId:backup.backupId});
+        });
+        actions.append(edit,restore,remove);
+        line.append(info,actions);section.append(line);
+      }
+      records.append(section);
+    }
+    const tip=make('p','自動備份最多保留10個版本，超過時自動清除最舊版本。手動備份永久保留。');
+    tip.className='context';records.append(tip);
   }
   async function execute(operation, payload = null) {
     if (busy || !state || !token) return;
@@ -805,10 +879,10 @@ dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-c
       const updated = await rpc('changeSiteContent', token, state.revision, operation, payload);
       if (attempt !== generation) return;
       state = updated;
-      editable = operation==='update' ? sent : {...state.values};
+      editable = ['update','backup','pin','rename','delete-backup'].includes(operation) ? sent : {...state.values};
       if (tab==='publish') paint();
       else markDirty();
-      status({save:'草稿已儲存，尚未發布。',update:'已儲存並更新',discard:'已放棄草稿。',publish:'發布完成。',backup:'備份完成。',restore:'已還原並發布。'}[operation]);
+      status({save:'草稿已儲存，尚未發布。',update:'已儲存並更新',discard:'已放棄草稿。',publish:'發布完成。',backup:'手動備份已保存。',restore:'已還原並發布。',pin:'已設為永久保留。',rename:'備份已重新命名。','delete-backup':'備份已刪除。'}[operation]);
       if (['publish','restore','update'].includes(operation)) session.share('published');
     } catch (error) {
       if (attempt !== generation) return;
@@ -887,7 +961,10 @@ dialog::backdrop{background:#0005}dialog p{margin:0 0 14px}dialog .row{justify-c
   $('update').onclick = () => execute('update',scopedChanges());
   $('publish').onclick = async () => { if (await ask('發布目前草稿？', $('publish'))) execute('publish'); };
   $('discard').onclick = async () => { if (await ask('放棄尚未發布的草稿與本次未儲存修改？', $('discard'))) execute('discard'); };
-  $('backup').onclick = () => execute('backup');
+  $('backup').onclick = async () => {
+    const name=await ask('備份目前正式發布的版本？',$('backup'),{name:''});
+    if (name!==null) await execute('backup',name);
+  };
   $('page').onchange = () => { fillChoices(false); filter(); };
   $('room').onchange = () => filter();
   $('search').oninput = () => filter();
